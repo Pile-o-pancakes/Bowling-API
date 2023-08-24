@@ -2,104 +2,166 @@ const express = require('express');
 const app = express();
 const port = 8000;
 
-const { checkBookingBody, checkEditBody } = require('./middlewares/booking');
-const { newBooking, editBooking, removeBooking } = require('./model/booking');
+const { checkGetbookingsBody ,checkBookingBody, checkEditBody, checkDeleteBody } = require('./middlewares/booking');
+const { getBookings, newBooking, editBooking, removeBooking, removeBookedLane, isLaneTaken } = require('./model/booking');
+
+const { costPerPerson, costPerLane, maxNumOfLanes } = require('./utils');
 
 app.use(express.json());
 
-// app.get('/api/booking', async (req, res) => {
+app.get('/api/booking', checkGetbookingsBody, async (req, res) => {
     
-//     const result = await getBookedLanes();
-//     if(result != false) {
-//         res.send({
-//             success: true,
-//             message: (result === undefined ? "Inga banor är bokade" : result)
-//         });
-//     }
-//     else {
-//         res.send({
-//             success: false,
-//             message: "Kunde inte hämta data"
-//         });
-//     }
-// });
+    const { bookingID } = req.body;
 
-app.post('/api/booking', checkBookingBody, (req, res) => {
+    const result = await getBookings(bookingID);
 
-    const result = newBooking(req.body);
+    if(result == undefined) {
 
-    if(result) {
         res.send({
-            success: true
+            success: true,
+            message: "Inga resultat hittades"
         })
     }
+
     else {
+
         res.send({
-            success: false,
-            message: "Kunde inte spara data"
+            success: true,
+            result: {
+                lanes: result.lanes,
+                participants: result.participants,
+                shoesizes: result.shoesizes
+            }
         })
     }
 });
 
-app.put('/api/booking', checkEditBody, (req, res) => {
+app.post('/api/booking', checkBookingBody, async (req, res) => {
 
-    const result = editBooking(req.body);
+    const { year, month, day, hour } = req.body.bookedAt;
 
-    if(result) {
-        res.send({
-            success: true,
-            message: "Bokningen har redigerats"
-        })
+    req.body.bookedAt = new Date(year, month, day, hour);
+
+    let message = "";
+
+    for(let i = 0; i < req.body.lanes.length; i++) {
+
+        const lane = parseInt(req.body.lanes[i]);
+
+        const laneTaken = await isLaneTaken(lane, req.body.bookedAt);
+
+        if(laneTaken) {
+
+            message += lane + ", "
+        }
     }
-    else {
+
+    if(message.length > 0) {
+
         res.send({
             success: false,
-            message: "Kunde inte redigera data"
+            message: `Banorna ${message} är upptagna.`
+        })
+    }
+
+    else {
+
+        const bookingID = await newBooking(req.body);
+
+        const sum = req.body.lanes.length * costPerLane + req.body.participants * costPerPerson;
+
+        res.send({
+            success: true,
+            message: "Bokning genomförd",
+            ID: bookingID,
+            cost: sum
         })
     }
 });
 
-app.delete('/api/booking', (req, res) => {
-    
-    const { bookingNumber } = req.body;
-    const result = removeBooking(bookingNumber);
+app.put('/api/booking', checkEditBody, async (req, res) => {
 
-    if(result) {
-        res.send({
-            success: true,
-            message: "Bokning borttagen"
-        })
+    let { bookingID, bookedAt } = req.body;
+
+    let message = "";
+
+    const { year, month, day, hour } = bookedAt;
+    bookedAt = new Date(year, month, day, hour);
+
+    for(let i = 1; i <= maxNumOfLanes; i++) {
+    
+        const laneTaken = await isLaneTaken(i, bookedAt);
+
+        if(laneTaken) {
+
+            message += i + ", "
+        }
     }
-    else {
+
+    if(message.length > 0) {
+
         res.send({
             success: false,
-            message: "Kunde inte ta bort bokningen"
+            message: `Banorna ${message} är upptagna.`
+        })
+    }
+
+    else {
+
+        let result = 0;
+
+        for(let i = 1; i <= maxNumOfLanes; i++) {
+
+            result = editBooking(bookingID, bookedAt, i);
+        }
+
+        if(result) {
+
+            res.send({
+                success: true,
+                message: `Datumet för bokningarna med ID: ${bookingID} har redigerats`
+            });
+        }
+        
+        else {
+
+            res.send({
+                success: true,
+                message: `Inga bokade tider kunde hittas`
+            });
+        }
+    }
+});
+
+app.delete('/api/booking', checkDeleteBody, async (req, res) => {
+    
+    const { bookingID } = req.body;
+
+    let success = await removeBooking(bookingID);
+
+    for(let i = 1; i <= maxNumOfLanes; i++) {
+
+        removeBookedLane(bookingID, i);
+    }
+
+    if(success) {
+
+        res.send({
+            success: true,
+            message: `Bokningen med ID: ${bookingID} är borttagen`
+        })
+    }
+    
+    else {
+
+        res.send({
+            success: true,
+            message: `Inga bokade tider kunde hittas`
         })
     }
 });
 
 app.listen(port, () => {
+
     console.log(`Server startad på port ${port}`);
 });
-
-/*
-    Data som ska med vid bokning:
-        Datum då man vill boka in sig
-        e-post adress
-        tidsintervall bokningen gäller (en bokning varar 60 min)
-        antal personer
-        antal banor man vill boka
-        skostorlek för alla personer
-        totalpris, 120 kr/person, 100 kr/bana
-        ett genererat bokningsnummer
-
-        routes:
-            get:
-                se bokningar man gjort
-            post:
-                ny bokning
-            put:
-                ändra bokning
-            delete:
-                ta bort bokning
-*/

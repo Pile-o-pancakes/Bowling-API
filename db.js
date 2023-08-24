@@ -11,18 +11,31 @@ function createDbConnection() {
     return db;
 }
 
+const maxNumOfLanes = 8;
+
 function createTables(db) {
+
     db.exec(
         `CREATE TABLE IF NOT EXISTS booked (
             ID INTEGER PRIMARY KEY AUTOINCREMENT,
-            bookedAt varchar NOT NULL,
-            bookingNumber varchar NOT NULL,
+            bookingID varchar NOT NULL,
             email varchar NOT NULL,
             lanes integer NOT NULL,
             participants varchar NOT NULL,
             shoesizes varchar NOT NULL
         );`
     );
+
+    for(let i = 1; i <= maxNumOfLanes; i++) {
+
+        db.exec(
+            `CREATE TABLE IF NOT EXISTS lane_${i} (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                bookedAt varchar NOT NULL,
+                bookingID varchar NOT NULL
+            );`
+        );
+    }
 }
 
 module.exports = createDbConnection();

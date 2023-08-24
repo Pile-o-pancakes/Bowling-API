@@ -1,19 +1,33 @@
+const { maxNumOfLanes, minNumOfLanes } = require('./../utils');
 
-async function checkBookingBody(req, res, next) {
 
-    const { year, month, day, hour } = req.body.bookedAt;
+function checkGetbookingsBody(req, res, next) {
 
-    typeof (req.body.shoeSizes);
-    req.body.bookedAt = new Date(year, month, day, hour).toDateString();
-    
-    if(req.body.bookedAt < Date().toString()) {
+    if("bookingID" in req.body === false) {
+
         res.send({
             success: false,
-            message: "Datumet har redan varit"
+            message: "Ett bokningsID behövs för att söka"
+        })
+    }
+    
+    else if(typeof req.body.bookingID !== "string") {
+
+        res.send({
+            success: false,
+            message: "bokningsID måste vara en sträng"
         })
     }
 
-    if('bookedAt' in req.body === false||
+    else {
+
+        next();
+    }
+}
+
+function checkBookingBody(req, res, next) {
+
+    if('bookedAt' in req.body === false ||
        'email' in req.body === false ||
        'lanes' in req.body === false ||
        'participants' in req.body === false ||
@@ -22,62 +36,97 @@ async function checkBookingBody(req, res, next) {
                 success: false,
                 message: "All data finns inte"
             });
-       }
+    }
        
-    else if(typeof (req.body.bookedAt) !== "string" ||
+    else if(typeof (req.body.bookedAt) !== "object" ||
             typeof (req.body.email) !== "string" ||
-            typeof (req.body.lanes) !== "string" ||
+            typeof (req.body.lanes) !== "object" ||
             typeof (req.body.participants) !== "number" ||
-            typeof (req.body.shoeSizes) !== "array") {
+            typeof (req.body.shoeSizes) !== "object") {
                 res.send({
                     success: false,
                     message: "Fel datatyp på data"
                 });
-            }
-
-    else if(req.body.lanes < 1 || req.body.lanes > 8 ||
-            req.body.shoeSizes.length != req.body.participants) {
-
     }
 
-    else {
-        next();
-    }
-}
+    else if("year" in req.body.bookedAt === false ||
+            "month" in req.body.bookedAt === false ||
+            "day" in req.body.bookedAt === false ||
+            "hour" in req.body.bookedAt === false) {
 
-async function checkEditBody(req, res, next) {
-
-    for(data in req.body) {
-        if(data === undefined) {
-            data = null;
-        }
-    }
-
-    if('bookedAt' in req.body === false||
-       'email' in req.body === false ||
-       'lanes' in req.body === false ||
-       'participants' in req.body === false ||
-       'shoeSizes' in req.body === false)  {
-            res.send({
-                success: false,
-                message: "All nödvändig data finns inte"
-            });
-       }
-
-    else if((typeof (req.body.bookedAt) !== "string" || null) ||
-            (typeof (req.body.email) !== "string" || null) ||
-            (typeof (req.body.lanes) !== "string" || null) ||
-            (typeof (req.body.participants) !== "string" || null) ||
-            (typeof (req.body.shoeSizes) !== "string" || null)) {
                 res.send({
                     success: false,
-                    message: "Fel datatyp i keys"
-                });
-            }
-    
+                    message: "Ett datum som består av år, månad, dag och timme krävs"
+                })
+    }
+
+    else if(req.body.lanes < minNumOfLanes || req.body.lanes > maxNumOfLanes) {
+                res.send({
+                    success: false,
+                    message: `Minst en bana behöver bokas, och högst ${maxNumOfLanes} kan bokas`
+                })
+    }
+
+    else if(req.body.shoeSizes.length != req.body.participants) {
+            res.send({
+                success: false,
+                message: "Alla deltagare behöver välja en skostorlek"
+            })
+    }
+
     else {
         next();
     }
 }
 
-module.exports = { checkBookingBody, checkEditBody }
+function checkEditBody(req, res, next) {
+
+    if('bookedAt' in req.body === false ||
+       'bookingID' in req.body === false) {
+
+        res.send({
+            success: false,
+            message: "BokningsID eller datum saknas"
+        });
+    }
+
+    else if(typeof req.body.bookingID !== "string" ||
+            typeof req.body.bookedAt !== "object") {
+
+        res.send({
+            success: false,
+            message: "BokningsID måste vara en sträng, datumet måste vara ett objekt"
+        });
+    }
+
+    else {
+
+        next();
+    }
+}
+
+function checkDeleteBody(req, res, next) {
+
+    if("bookingID" in req.body === false) {
+
+        res.send({
+            success: false,
+            message: "Ett ID nummer till bokningarna krävs"
+        })
+    }
+
+    else if(typeof req.body.bookingID !== "string") {
+
+        res.send({
+            success: false,
+            message: "ID måste vara en sträng"
+        })
+    }
+
+    else {
+
+        next();
+    }
+}
+
+module.exports = { checkGetbookingsBody, checkBookingBody, checkEditBody, checkDeleteBody }
